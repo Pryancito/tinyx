@@ -195,7 +195,8 @@ OsSignal(sig, handler)
 
 static Bool StillLocking = FALSE;
 static char LockFile[PATH_MAX];
-static Bool nolock = FALSE;
+/* Default TRUE: no /tmp/.X0-lock (e.g. for embedded/minimal/headless) */
+static Bool nolock = TRUE;
 
 /*
  * LockServer --
@@ -451,7 +452,8 @@ void UseMsg(void)
 #ifdef RLIMIT_STACK
     ErrorF("-ls int                limit stack space to N Kb\n");
 #endif
-    ErrorF("-nolock                disable the locking mechanism\n");
+    ErrorF("-nolock                disable the locking mechanism (default)\n");
+    ErrorF("-lock                  enable /tmp/.X<n>-lock\n");
 #ifndef NOLOGOHACK
     ErrorF("-logo                  enable logo in screen saver\n");
     ErrorF("nologo                 disable logo in screen saver\n");
@@ -691,12 +693,9 @@ ProcessCommandLine(int argc, char *argv[])
 	}
 #endif
 	else if ( strcmp ( argv[i], "-nolock") == 0)
-	{
-	  if (getuid() != 0)
-	    ErrorF("Warning: the -nolock option can only be used by root\n");
-	  else
-	    nolock = TRUE;
-	}
+		nolock = TRUE;
+	else if ( strcmp ( argv[i], "-lock") == 0)
+		nolock = FALSE;
 #ifndef NOLOGOHACK
 	else if ( strcmp( argv[i], "-logo") == 0)
 	{
@@ -892,7 +891,6 @@ ProcessCommandLine(int argc, char *argv[])
 	    FatalError("Unrecognized option: %s\n", argv[i]);
         }
     }
-
     if (!tcp)
 	_XSERVTransNoListen("tcp");
 }
@@ -1638,3 +1636,11 @@ CheckUserAuthorization(void)
 {
 }
 
+
+#include <sys/select.h>
+long __fdelt_chk(long fd) {
+    if (fd < 0 || fd >= FD_SETSIZE) {
+        FatalError("FD_SET index out of range: %ld\n", fd);
+    }
+    return fd / (8 * sizeof(long));
+}

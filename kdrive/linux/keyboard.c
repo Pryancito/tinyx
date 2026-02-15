@@ -1,6 +1,6 @@
 /*
  *
- * Copyright © 1999 Keith Packard
+ * Copyright ? 1999 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
@@ -117,6 +117,8 @@ static void readKernelMapping(void)
 	int minKeyCode, maxKeyCode;
 	int row;
 
+	if (LinuxConsoleFd < 0)
+		return;
 	minKeyCode = NR_KEYS;
 	maxKeyCode = 0;
 	row = 0;
@@ -422,12 +424,16 @@ static int LinuxKeyboardEnable(int fd, void *closure)
 
 static void LinuxKeyboardDisable(int fd, void *closure)
 {
+	if (LinuxConsoleFd < 0)
+		return;
 	ioctl(LinuxConsoleFd, KDSKBMODE, LinuxKbdTrans);
 	tcsetattr(LinuxConsoleFd, TCSANOW, &LinuxTermios);
 }
 
 static int LinuxKeyboardInit(void)
 {
+	if (LinuxConsoleFd < 0)
+		return 0;  /* No console: no keyboard from VT */
 	if (!LinuxKbdType)
 		LinuxKbdType = KdAllocInputType();
 
@@ -440,17 +446,23 @@ static int LinuxKeyboardInit(void)
 
 static void LinuxKeyboardFini(void)
 {
+	if (LinuxConsoleFd < 0)
+		return;
 	LinuxKeyboardDisable(LinuxConsoleFd, 0);
 	KdUnregisterFds(LinuxKbdType, FALSE);
 }
 
 static void LinuxKeyboardLeds(int leds)
 {
+	if (LinuxConsoleFd < 0)
+		return;
 	ioctl(LinuxConsoleFd, KDSETLED, leds & 7);
 }
 
 static void LinuxKeyboardBell(int volume, int pitch, int duration)
 {
+	if (LinuxConsoleFd < 0)
+		return;
 	if (volume && pitch) {
 		ioctl(LinuxConsoleFd, KDMKTONE,
 		      ((1193190 / pitch) & 0xffff) |

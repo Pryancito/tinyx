@@ -1,6 +1,6 @@
 /*
  *
- * Copyright © 1999 Keith Packard
+ * Copyright ? 1999 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
@@ -74,33 +74,20 @@ static int LinuxInit(void)
 	struct vt_stat vts;
 
 	LinuxConsoleFd = -1;
-	/* check if we're run with euid==0 */
+	/* If not root, skip console/VT (e.g. minimal OS or framebuffer-only). */
 	if (geteuid() != 0) {
-		FatalError("LinuxInit: Server must be suid root\n");
+		return 1;
 	}
 
 	if (kdVirtualTerminal >= 0)
 		vtno = kdVirtualTerminal;
 	else {
-		if ((fd = open("/dev/tty0", O_WRONLY, 0)) < 0) {
-			FatalError("LinuxInit: Cannot open /dev/tty0 (%s)\n",
-				   strerror(errno));
-		}
-		if ((ioctl(fd, VT_OPENQRY, &vtno) < 0) || (vtno == -1)) {
-			FatalError("xf86OpenConsole: Cannot find a free VT\n");
-		}
+		LinuxConsoleFd = -1;
+		return 1;
 	}
 	close(fd);
 
-	sprintf(vtname, "/dev/tty%d", vtno);	/* /dev/tty1-64 */
-
-	if ((LinuxConsoleFd = open(vtname, O_RDWR | O_NDELAY, 0)) < 0) {
-		FatalError("LinuxInit: Cannot open %s (%s)\n",
-			   vtname, strerror(errno));
-	}
-
-	/* change ownership of the vt */
-	LinuxCheckChown(vtname);
+	LinuxConsoleFd = -1;
 
 	/*
 	 * the current VT device we're running on is not "console", we want
@@ -126,6 +113,8 @@ static void LinuxSetSwitchMode(int mode)
 	struct sigaction act;
 	struct vt_mode VT;
 
+	if (LinuxConsoleFd < 0)
+		return;
 	if (ioctl(LinuxConsoleFd, VT_GETMODE, &VT) < 0) {
 		FatalError("LinuxInit: VT_GETMODE failed\n");
 	}
@@ -211,6 +200,8 @@ static void LinuxEnable(void)
 {
 	if (enabled)
 		return;
+	if (LinuxConsoleFd < 0)
+		return;  /* No console: framebuffer-only mode */
 	if (kdSwitchPending) {
 		kdSwitchPending = FALSE;
 		ioctl(LinuxConsoleFd, VT_RELDISP, VT_ACKACQ);
@@ -252,6 +243,8 @@ static Bool LinuxSpecialKey(KeySym sym)
 	struct vt_stat vts;
 	int con;
 
+	if (LinuxConsoleFd < 0)
+		return FALSE;
 	if (XK_F1 <= sym && sym <= XK_F12) {
 		con = sym - XK_F1 + 1;
 		memset(&vts, '\0', sizeof(vts));	/* valgrind */
@@ -266,6 +259,8 @@ static Bool LinuxSpecialKey(KeySym sym)
 
 static void LinuxDisable(void)
 {
+	if (LinuxConsoleFd < 0)
+		return;
 	ioctl(LinuxConsoleFd, KDSETMODE, KD_TEXT);	/* Back to text mode ... */
 	if (kdSwitchPending) {
 		kdSwitchPending = FALSE;

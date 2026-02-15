@@ -2053,3 +2053,134 @@ remove_fs_handlers(FontPathElementPtr fpe, BlockHandlerProcPtr block_handler,
     RemoveFontWakeup(fpe);
 }
 
+
+_X_EXPORT void
+GetGlyphs(font, count, chars, fontEncoding, realCount, charinfo)
+    FontPtr     font;
+    unsigned long count;
+    unsigned char *chars;
+    FontEncoding fontEncoding;
+    unsigned long *realCount;
+    CharInfoPtr *charinfo;
+{
+    (* font->get_glyphs)(font, count, chars, fontEncoding, realCount, charinfo);
+}
+
+_X_EXPORT void
+QueryGlyphExtents(pFont, pchars, nchars, pExtents)
+    FontPtr pFont;
+    CharInfoPtr *pchars;
+    unsigned long nchars;
+    ExtentInfoPtr pExtents;
+{
+    (* pFont->get_metrics)(pFont, nchars, pchars, Linear8Bit, &nchars, pExtents);
+}
+
+_X_EXPORT void
+EmptyFontPatternCache(cache)
+    FontPatternCachePtr cache;
+{
+}
+
+_X_EXPORT FontPtr
+FindCachedFontPattern(cache, pattern, len)
+    FontPatternCachePtr cache;
+    const char *pattern;
+    int len;
+{
+    return (FontPtr)0;
+}
+
+_X_EXPORT void
+CacheFontPattern(cache, pattern, len, pFont)
+    FontPatternCachePtr cache;
+    const char *pattern;
+    int len;
+    FontPtr pFont;
+{
+}
+
+_X_EXPORT FontPatternCachePtr
+MakeFontPatternCache()
+{
+    return (FontPatternCachePtr)0;
+}
+
+_X_EXPORT void
+FreeFontPatternCache(cache)
+    FontPatternCachePtr cache;
+{
+}
+
+_X_EXPORT Bool
+QueryTextExtents(pFont, count, chars, info)
+    FontPtr pFont;
+    unsigned long count;
+    unsigned char *chars;
+    ExtentInfoPtr info;
+{
+    return TRUE;
+}
+
+_X_EXPORT FontNamesPtr
+MakeFontNamesRecord(size)
+    unsigned size;
+{
+    return (FontNamesPtr)0;
+}
+
+_X_EXPORT void
+FreeFontNames(pFN)
+    FontNamesPtr pFN;
+{
+}
+
+_X_EXPORT int
+AddFontNamesName(names, name, namelen)
+    FontNamesPtr names;
+    char *name;
+    int namelen;
+{
+    return 0;
+}
+
+_X_EXPORT void
+RemoveCachedFontPattern(cache, pFont)
+    FontPatternCachePtr cache;
+    FontPtr pFont;
+{
+}
+
+_X_EXPORT Bool
+ParseGlyphCachingMode(str)
+    char *str;
+{
+    return (Bool)0;
+}
+
+_X_EXPORT void
+InitGlyphCaching()
+{
+}
+
+_X_EXPORT void
+SetGlyphCachingMode(newmode)
+    int newmode;
+{
+}
+
+_X_EXPORT int
+AllocateFontPrivateIndex()
+{
+    static int index = 0;
+    return index++;
+}
+
+_X_EXPORT Bool
+_FontSetNewPrivate(pFont, n, ptr)
+    FontPtr pFont;
+    int n;
+    pointer ptr;
+{
+    return TRUE;
+}

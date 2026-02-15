@@ -13,6 +13,9 @@ libfbdev_a_SOURCES =	\
 Xfbdev_SOURCES = \
 	fbinit.c
 
+# Force resolver ResetFontPrivateIndex desde libxfont2 (evita undefined ref con estáticos+LTO)
+Xfbdev_LDFLAGS = -Wl,--undefined=ResetFontPrivateIndex
+
 Xfbdev_LDADD = 						\
 	libfbdev.a					\
 	@KDRIVE_LIBS@					\

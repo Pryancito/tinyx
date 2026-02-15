@@ -12,6 +12,7 @@ libdix_la_SOURCES = 	\
 	dispatch.c	\
 	dispatch.h	\
 	dixfonts.c	\
+	fontstub.c	\
 	dixutils.c	\
 	events.c	\
 	extension.c	\

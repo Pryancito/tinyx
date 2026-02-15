@@ -12,6 +12,9 @@
 /* Default font path */
 #undef COMPILEDDEFAULTFONTPATH
 
+/* Use built-in fonts only (no -fp / external font files) */
+#undef BUILTIN_FONTS_DEFAULT
+
 /* Define to 1 if using `alloca.c'. */
 #undef C_ALLOCA
 

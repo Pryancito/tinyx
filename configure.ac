@@ -248,6 +248,13 @@ DEFAULT_FONT_PATH="${FONTDIR}/misc/,${FONTDIR}/100dpi/,${FONTDIR}/75dpi/"
 AC_ARG_WITH(default-font-path, AS_HELP_STRING([--with-default-font-path=PATH], [Comma separated list of font dirs]),
 				[ FONTPATH="$withval" ],
 				[ FONTPATH="${DEFAULT_FONT_PATH}" ])
+AC_ARG_ENABLE(builtin-fonts, AS_HELP_STRING([--enable-builtin-fonts], [Use only built-in fonts (fixed, cursor) embedded in binary. No -fp or external font files needed.]),
+				[ BUILTIN_FONTS=$enableval ], [ BUILTIN_FONTS=no ])
+if test "x$BUILTIN_FONTS" = xyes; then
+	FONTPATH="built-ins"
+	AC_DEFINE(BUILTIN_FONTS_DEFAULT, 1, [Default font path is built-ins only; no -fp needed])
+	AC_MSG_NOTICE([Default font path set to built-ins (fonts in .data)])
+fi
 
 dnl Extensions.
 AC_ARG_ENABLE(xres,           AS_HELP_STRING([--disable-xres], [Build XRes extension (default: enabled)]), [RES=$enableval], [RES=yes])
@@ -262,6 +269,7 @@ dnl kdrive and its subsystems
 AC_ARG_ENABLE(kdrive,         AS_HELP_STRING([--enable-kdrive], [Build kdrive servers (default: yes)]), [KDRIVE=$enableval], [KDRIVE=yes])
 AC_ARG_ENABLE(xvesa,          AS_HELP_STRING([--disable-xvesa], [Build Xvesa server (default: yes)]), [XVESA=$enableval], [XVESA=yes])
 AC_ARG_ENABLE(xfbdev,         AS_HELP_STRING([--disable-xfbdev], [Build Xfbdev server (default: yes)]), [XFBDEV=$enableval], [XFBDEV=yes])
+AC_ARG_ENABLE(kdrive-minimal, AS_HELP_STRING([--enable-kdrive-minimal], [Use minimal OS backend instead of Linux (no /dev/tty, VT; for Eclipse OS etc.)]), [enable_kdrive_minimal=$enableval], [enable_kdrive_minimal=no])
 
 
 dnl chown/chmod to be setuid root as part of build
@@ -321,7 +329,7 @@ XEXTXORG_LIB='$(top_builddir)/Xext/libXextbuiltin.la'
 
 dnl Core modules for most extensions, et al.
 REQUIRED_MODULES="[randrproto >= 1.2] renderproto [fixesproto >= 4.0] [damageproto >= 1.1] xcmiscproto xextproto xproto xtrans xf86bigfontproto [scrnsaverproto >= 1.1] bigreqsproto resourceproto fontsproto inputproto [kbproto >= 1.0.3]"
-REQUIRED_LIBS="xfont fontenc"
+REQUIRED_LIBS="xfont2 fontenc"
 
 AM_CONDITIONAL(SCREENSAVER, [test "x$SCREENSAVER" = xyes])
 if test "x$SCREENSAVER" = xyes; then
@@ -453,7 +461,9 @@ PKG_CHECK_MODULES([XSERVERCFLAGS], [$REQUIRED_MODULES $REQUIRED_LIBS])
 PKG_CHECK_MODULES([XSERVERLIBS], [$REQUIRED_LIBS])
 
 XSERVER_CFLAGS="${XSERVERCFLAGS_CFLAGS}"
-XSERVER_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} -lm"
+# Repeat REQUIRED_LIBS (xfont2, fontenc) at end so static libs resolve symbols
+# (e.g. ResetFontPrivateIndex from libxfont2) when linking with -flto or --gc-sections
+XSERVER_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} -lm ${XSERVERLIBS_LIBS}"
 AC_SUBST([SYS_LIBS])
 
 AC_CHECK_FUNCS([clock_gettime], [have_clock_gettime=yes],
@@ -562,14 +572,24 @@ if test "$KDRIVE" = yes; then
     #    $MIEXT_SHADOW_LIB"
     KDRIVE_PURE_LIBS="$FB_LIB $MI_LIB $FIXES_LIB $XEXT_LIB $DBE_LIB $RENDER_LIB $RANDR_LIB $DAMAGE_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $OS_LIB"
     KDRIVE_LIB='$(top_builddir)/kdrive/src/libkdrive.a'
+    KDRIVELINUX=no
+    KDRIVEMINIMAL=no
     case $host_os in
 	*linux*)
-	    KDRIVE_OS_LIB='$(top_builddir)/kdrive/linux/liblinux.a'
-            KDRIVELINUX=yes
+	    if test "x$enable_kdrive_minimal" = xyes; then
+		KDRIVE_OS_LIB='$(top_builddir)/kdrive/minimal/libminimal.a'
+		KDRIVE_OS_INC='-I$(top_srcdir)/kdrive/minimal'
+		KDRIVE_INCS="$KDRIVE_PURE_INCS $KDRIVE_OS_INC"
+		KDRIVEMINIMAL=yes
+	    else
+		KDRIVE_OS_LIB='$(top_builddir)/kdrive/linux/liblinux.a'
+		KDRIVELINUX=yes
+	    fi
 	    ;;
     esac
     KDRIVE_STUB_LIB='$(top_builddir)/kdrive/src/libkdrivestubs.a'
-    KDRIVE_LIBS="$DIX_LIB $KDRIVE_LIB $KDRIVE_OS_LIB $KDRIVE_PURE_LIBS $KDRIVE_STUB_LIB"
+    dnl KDRIVE_OS_LIB (e.g. libminimal) must come after OS_LIB so OsVendorInit is resolved
+KDRIVE_LIBS="$DIX_LIB $KDRIVE_LIB $KDRIVE_PURE_LIBS $KDRIVE_OS_LIB $KDRIVE_STUB_LIB"
 fi
 AC_SUBST(KDRIVE_INCS)
 AC_SUBST(KDRIVE_PURE_INCS)
@@ -577,6 +597,7 @@ AC_SUBST(KDRIVE_CFLAGS)
 AC_SUBST(KDRIVE_PURE_LIBS)
 AC_SUBST(KDRIVE_LIBS)
 AM_CONDITIONAL(KDRIVELINUX, [test "x$KDRIVELINUX" = xyes])
+AM_CONDITIONAL(KDRIVEMINIMAL, [test "x$KDRIVEMINIMAL" = xyes])
 AM_CONDITIONAL(KDRIVEVESA, [test x"$ac_cv_header_asm_vm86_h" = xyes -a "x$XVESA" != "xno"])
 AM_CONDITIONAL(KDRIVEFBDEV, [test x"$ac_cv_header_linux_fb_h" = xyes -a "x$XFBDEV" != "xno"])
 
@@ -585,8 +606,9 @@ AC_DEFINE(XResExtension, 1, [Build XRes extension])
 
 dnl ---------- Compiler arguments
 
+dnl LTO disabled: causes undefined refs (OsVendorInit, ResetFontPrivateIndex) at link with static libs
 AX_CHECK_COMPILE_FLAG([-flto],
-	[CFLAGS="$CFLAGS -flto"; LDFLAGS="$LDFLAGS -flto"; ac_cv_lto_supported=yes],
+	[ac_cv_lto_supported=no],
 	[ac_cv_lto_supported=no],
 	[])
 
@@ -613,6 +635,12 @@ AX_CHECK_COMPILE_FLAG([-fno-unwind-tables],
 	[])
 AX_CHECK_COMPILE_FLAG([-fno-asynchronous-unwind-tables],
 	[CFLAGS="$CFLAGS -fno-asynchronous-unwind-tables"],
+	[],
+	[])
+
+dnl Needed when the toolchain links executables as PIE by default (e.g. Ubuntu/Debian)
+AX_CHECK_COMPILE_FLAG([-fPIE],
+	[CFLAGS="$CFLAGS -fPIE"],
 	[],
 	[])
 
@@ -661,6 +689,7 @@ xfixes/Makefile
 kdrive/Makefile
 kdrive/fbdev/Makefile
 kdrive/linux/Makefile
+kdrive/minimal/Makefile
 kdrive/src/Makefile
 kdrive/vesa/Makefile
 ])

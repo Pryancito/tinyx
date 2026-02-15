@@ -333,11 +333,27 @@ main(int argc, char *argv[], char *envp[])
         InitFonts();
         if (SetDefaultFontPath(defaultFontPath) != Success)
             ErrorF("failed to set default font path '%s'", defaultFontPath);
-        if (!SetDefaultFont(defaultTextFont))
-            FatalError("could not open default font '%s'", defaultTextFont);
-        if (!(rootCursor = CreateRootCursor(defaultCursorFont, 0)))
-            FatalError("could not open default cursor font '%s'",
-                       defaultCursorFont);
+        if (!SetDefaultFont(defaultTextFont)) {
+            /* built-ins can fail if libXfont2 was built without builtin fonts; try file path */
+            static const char fallback_font_path[] =
+                "/usr/share/fonts/X11/misc/,/usr/share/fonts/X11/100dpi/,/usr/share/fonts/X11/75dpi/";
+            if (SetDefaultFontPath((char *)fallback_font_path) == Success &&
+                SetDefaultFont(defaultTextFont))
+                ErrorF("Built-ins unavailable, using fallback font path: %s\n", fallback_font_path);
+            else
+                FatalError("could not open default font '%s'. Try: -fp /usr/share/fonts/X11/misc/ -fn fixed",
+                           defaultTextFont);
+        }
+        if (!(rootCursor = CreateRootCursor(defaultCursorFont, 0))) {
+            static const char fallback_font_path_cursor[] =
+                "/usr/share/fonts/X11/misc/,/usr/share/fonts/X11/100dpi/,/usr/share/fonts/X11/75dpi/";
+            if (SetDefaultFontPath((char *)fallback_font_path_cursor) == Success &&
+                (rootCursor = CreateRootCursor(defaultCursorFont, 0)))
+                ErrorF("Using fallback font path for cursor\n");
+            else
+                FatalError("could not open default cursor font '%s'",
+                           defaultCursorFont);
+        }
 #ifdef DPMSExtension
         /* check all screens, looking for DPMS Capabilities */
         DPMSCapableFlag = DPMSSupported();

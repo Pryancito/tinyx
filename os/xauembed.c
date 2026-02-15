@@ -26,6 +26,8 @@ in this Software without prior written authorization from The Open Group.
 
 #include <X11/Xauth.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 void
 XauDisposeAuth (Xauth *auth)
