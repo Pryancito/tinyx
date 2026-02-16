@@ -13,8 +13,9 @@ libfbdev_a_SOURCES =	\
 Xfbdev_SOURCES = \
 	fbinit.c
 
-# Force resolver ResetFontPrivateIndex desde libxfont2 (evita undefined ref con estáticos+LTO)
-Xfbdev_LDFLAGS = -Wl,--undefined=ResetFontPrivateIndex
+# Force resolver ResetFontPrivateIndex desde libxfont/libxfont2 (evita undefined ref con estáticos+LTO)
+# -no-pie: necesario si se enlaza con crt0_*.o (compilados con -fno-PIE); evita "relocation R_X86_64_32 can not be used when making a PIE object"
+Xfbdev_LDFLAGS = -Wl,--undefined=ResetFontPrivateIndex -no-pie
 
 Xfbdev_LDADD = 						\
 	libfbdev.a					\

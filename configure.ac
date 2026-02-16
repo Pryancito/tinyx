@@ -329,7 +329,13 @@ XEXTXORG_LIB='$(top_builddir)/Xext/libXextbuiltin.la'
 
 dnl Core modules for most extensions, et al.
 REQUIRED_MODULES="[randrproto >= 1.2] renderproto [fixesproto >= 4.0] [damageproto >= 1.1] xcmiscproto xextproto xproto xtrans xf86bigfontproto [scrnsaverproto >= 1.1] bigreqsproto resourceproto fontsproto inputproto [kbproto >= 1.0.3]"
-REQUIRED_LIBS="xfont2 fontenc"
+dnl libXfont 1.x (xfont) vs libXfont2 (xfont2): --with-xfont=1 usa eclipse-apps/libXfont 1.5 con fuentes built-in
+AC_ARG_WITH(xfont, AS_HELP_STRING([--with-xfont=1], [Use libXfont 1.x (xfont) instead of libXfont2; for eclipse-apps/libXfont 1.5 with builtins]), [with_xfont=$withval], [with_xfont=no])
+if test "x$with_xfont" = x1 || test "x$with_xfont" = xyes; then
+	REQUIRED_LIBS="xfont fontenc"
+else
+	REQUIRED_LIBS="xfont2 fontenc"
+fi
 
 AM_CONDITIONAL(SCREENSAVER, [test "x$SCREENSAVER" = xyes])
 if test "x$SCREENSAVER" = xyes; then
@@ -461,8 +467,8 @@ PKG_CHECK_MODULES([XSERVERCFLAGS], [$REQUIRED_MODULES $REQUIRED_LIBS])
 PKG_CHECK_MODULES([XSERVERLIBS], [$REQUIRED_LIBS])
 
 XSERVER_CFLAGS="${XSERVERCFLAGS_CFLAGS}"
-# Repeat REQUIRED_LIBS (xfont2, fontenc) at end so static libs resolve symbols
-# (e.g. ResetFontPrivateIndex from libxfont2) when linking with -flto or --gc-sections
+# Repeat REQUIRED_LIBS (xfont/xfont2, fontenc) at end so static libs resolve symbols
+# (e.g. ResetFontPrivateIndex from libxfont/libxfont2) when linking with -flto or --gc-sections
 XSERVER_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} -lm ${XSERVERLIBS_LIBS}"
 AC_SUBST([SYS_LIBS])
 

@@ -979,6 +979,8 @@ ResetHosts (const char *display)
     	    }
 #endif /* IPv6 */
         }
+#else
+	{ }  /* else sin cuerpo cuando TCPCONN no está definido (Eclipse build) */
 #endif /* TCPCONN */
 //	family = FamilyWild;
         }
