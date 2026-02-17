@@ -136,6 +136,9 @@ static fd_set SavedClientsWithInput;
 _X_EXPORT int GrabInProgress = 0;
 
 int *ConnectionTranslation = NULL;
+#ifdef XNO_SYSCONF
+static int ConnectionTranslation_static[MAXCLIENTS + 1];
+#endif
 
 XtransConnInfo 	*ListenTransConns = NULL;
 int	       	*ListenTransFds = NULL;
@@ -170,7 +173,7 @@ InitConnectionLimits(void)
     lastfdesc = sysconf(_SC_OPEN_MAX) - 1;
 #endif
 
-#ifdef HAS_GETDTABLESIZE
+#if defined(HAS_GETDTABLESIZE) && !defined(XNO_SYSCONF)
     if (lastfdesc < 0)
 	lastfdesc = getdtablesize() - 1;
 #endif
@@ -201,7 +204,15 @@ InitConnectionLimits(void)
     ErrorF("InitConnectionLimits: MaxClients = %d\n", MaxClients);
 #endif
 
+#ifdef XNO_SYSCONF
+    ConnectionTranslation = ConnectionTranslation_static;
+#else
     ConnectionTranslation = (int *)malloc(sizeof(int)*(lastfdesc + 1));
+    if (!ConnectionTranslation) {
+        FatalError("InitConnectionLimits: Failed to allocate ConnectionTranslation (%d bytes)\n",
+                   (int)(sizeof(int)*(lastfdesc + 1)));
+    }
+#endif
 }
 
 

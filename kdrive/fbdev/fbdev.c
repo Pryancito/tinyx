@@ -73,7 +73,13 @@ static Bool fbdevInitialize(KdCardInfo * card, FbdevPriv * priv)
 		close(priv->fd);
 		return FALSE;
 	}
-	off = (unsigned long) priv->fix.smem_start % (unsigned long) getpagesize();
+	{
+		unsigned long pagesize = 4096;
+#ifndef XNO_SYSCONF
+		pagesize = getpagesize();
+#endif
+		off = (unsigned long) priv->fix.smem_start % pagesize;
+	}
 	priv->fb = priv->fb_base + off;
 	return TRUE;
 }

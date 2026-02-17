@@ -184,7 +184,9 @@ XFree86BigfontExtensionInit()
 #if !defined(CSRG_BASED) && !defined(__CYGWIN__)
         pagesize = SHMLBA;
 #else
-# ifdef _SC_PAGESIZE
+# ifdef XNO_SYSCONF
+        pagesize = 4096;  /* avoid sysconf/getpagesize in static/sudo context */
+# elif defined(_SC_PAGESIZE)
         pagesize = sysconf(_SC_PAGESIZE);
 # else
         pagesize = getpagesize();

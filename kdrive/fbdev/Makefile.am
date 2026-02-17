@@ -13,7 +13,6 @@ libfbdev_a_SOURCES =	\
 Xfbdev_SOURCES = \
 	fbinit.c
 
-<<<<<<< HEAD
 # Enlace estático: sin dependencias .so (necesario para Eclipse OS).
 # -all-static es la opción de libtool que fuerza enlace estático (libtool ignora -static a veces).
 # -no-pie: necesario si se enlaza con crt0_*.o.
@@ -21,12 +20,10 @@ Xfbdev_SOURCES = \
 Xfbdev_LDFLAGS = -all-static -no-pie -Wl,--undefined=ResetFontPrivateIndex
 
 # Con enlace estático, freetype/fontenc/png necesitan estas libs; orden: deps al final (-lz -lm para gz*, deflate*, pow)
-=======
->>>>>>> parent of d6a6242 (mejoras para el sistema operativo Eclipse OS.)
-Xfbdev_LDADD = 						\
+Xfbdev_LDADD =					\
 	libfbdev.a					\
-	@KDRIVE_LIBS@					\
-	@XSERVER_LIBS@					\
+	@KDRIVE_LIBS@				\
+	@XSERVER_LIBS@				\
 	-lpng -lbz2 -lbrotlidec -lbrotlicommon -lz -lm					
 
 Xfbdev_DEPENDENCIES =					\
