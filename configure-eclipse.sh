@@ -17,7 +17,7 @@ SYSROOT="${SYSROOT:-/home/moebius/eclipse/eclipse-os-build/sysroot}"
 export LDFLAGS="${LDFLAGS:--Wl,-O1} -static"
 
 # Sin stack canary: evita "mov %fs:0x28,%rax" que falla si TLS no está inicializado (exec desde Eclipse OS)
-export CFLAGS="${CFLAGS:--O2} -fno-stack-protector"
+export CFLAGS="${CFLAGS:--O2} -fno-stack-protector -DECLIPSE_OS -DXNO_SYSCONF -ftls-model=global-dynamic"
 
 # Usar eclipse-apps/libXfont 1.5 (fuentes built-in). Si existe ../libXfont y aún no está en install/, compilar e instalar.
 XFONT1_OPT=""
@@ -47,7 +47,12 @@ fi
     --disable-xdmcp \
     --disable-xdm-auth-1 \
     --disable-ipv6 \
-    --disable-xvesa
+    --disable-xvesa \
+    --disable-tcp-transport \
+    --with-fontdir=/usr/share/fonts/X11 \
+    --enable-minimal \
+    --disable-linux-keyboard \
+    --disable-linux-mouse
 
 sed -i 's/#define HAVE_ASM_MTRR_H 1/\/* #undef HAVE_ASM_MTRR_H *\//' include/dix-config.h
 # Deshabilitar TCP/IP: no usamos red en Eclipse OS (evita getaddrinfo, gethostbyname, etc.)
@@ -60,5 +65,5 @@ echo "Configure done. LDFLAGS includes -static for a static Xfbdev binary."
 echo "If make fails with 'cannot find -lfontenc' (or similar), install static libs, e.g.:"
 echo "  sudo apt install libfontenc-dev (and ensure .a is present)"
 echo "To build with sysroot, run:"
-echo "  make CC=\"gcc --sysroot=$SYSROOT -fno-stack-protector -fno-PIE -O2\" LDFLAGS=\"-B$SYSROOT/usr/lib -no-pie -static\" LIBS=\"-lz\""
+echo "  make CC=\"musl-gcc --sysroot=$SYSROOT -fno-stack-protector -fno-PIE -O2\" LDFLAGS=\"-B$SYSROOT/usr/lib -no-pie -static\" LIBS=\"-lz\""
 echo "This avoids overriding internal CFLAGS while ensuring sysroot is used for both includes and linking."

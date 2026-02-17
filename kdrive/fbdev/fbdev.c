@@ -1,6 +1,6 @@
 /*
  *
- * Copyright © 1999 Keith Packard
+ * Copyright ? 1999 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
@@ -35,6 +35,72 @@ const char *fbdevDevicePath = NULL;
 
 static Bool fbdevMapFramebuffer(KdScreenInfo * screen);
 
+#ifdef ECLIPSE_OS
+/* Eclipse OS: get framebuffer via kernel syscalls 15 (get_framebuffer_info) and 16 (map_framebuffer) */
+#include <stdint.h>
+#define ECLIPSE_SYS_GET_FRAMEBUFFER_INFO  15
+#define ECLIPSE_SYS_MAP_FRAMEBUFFER       16
+
+typedef struct __attribute__((packed)) {
+	uint64_t address;
+	uint32_t width;
+	uint32_t height;
+	uint32_t pitch;
+	uint16_t bpp;
+	uint8_t red_mask_size, red_mask_shift, green_mask_size, green_mask_shift, blue_mask_size, blue_mask_shift;
+} EclipseFramebufferInfo;
+
+static long eclipse_syscall1(long n, unsigned long a1)
+{
+	long ret;
+	__asm__ volatile ("int $0x80" : "=a"(ret) : "a"(n), "D"(a1) : "memory", "cc");
+	return ret;
+}
+
+static unsigned long eclipse_syscall0(long n)
+{
+	long ret;
+	__asm__ volatile ("int $0x80" : "=a"(ret) : "a"(n) : "memory", "cc");
+	return (unsigned long)ret;
+}
+
+static Bool fbdevInitializeEclipse(KdCardInfo * card, FbdevPriv * priv)
+{
+	EclipseFramebufferInfo info;
+	memset(&info, 0, sizeof(info));
+	if (eclipse_syscall1(ECLIPSE_SYS_GET_FRAMEBUFFER_INFO, (unsigned long)&info) != 0)
+		return FALSE;
+	if (info.address == 0 || info.width == 0 || info.height == 0)
+		return FALSE;
+
+	unsigned long vaddr = eclipse_syscall0(ECLIPSE_SYS_MAP_FRAMEBUFFER);
+	if (vaddr == 0)
+		return FALSE;
+
+	memset(&priv->fix, '\0', sizeof(priv->fix));
+	memset(&priv->var, '\0', sizeof(priv->var));
+	priv->fd = -1;  /* no fd when using direct syscall */
+	priv->fix.smem_start = info.address;
+	priv->fix.smem_len = (unsigned long)info.pitch * info.height;
+	priv->fix.line_length = info.pitch;
+	priv->fix.visual = 2;  /* FB_VISUAL_TRUECOLOR */
+	priv->var.xres = info.width;
+	priv->var.yres = info.height;
+	priv->var.xres_virtual = info.width;
+	priv->var.yres_virtual = info.height;
+	priv->var.bits_per_pixel = info.bpp;
+	priv->var.red.offset = 16;
+	priv->var.red.length = 8;
+	priv->var.green.offset = 8;
+	priv->var.green.length = 8;
+	priv->var.blue.offset = 0;
+	priv->var.blue.length = 8;
+	priv->fb_base = (char *)vaddr;
+	priv->fb = priv->fb_base;
+	return TRUE;
+}
+#endif /* ECLIPSE_OS */
+
 static Bool fbdevInitialize(KdCardInfo * card, FbdevPriv * priv)
 {
 	unsigned long off;
@@ -42,12 +108,24 @@ static Bool fbdevInitialize(KdCardInfo * card, FbdevPriv * priv)
 	if (fbdevDevicePath == NULL)
 		fbdevDevicePath = "/dev/fb0";
 
+#ifdef ECLIPSE_OS
+	/* Prefer /dev/fb0 (same path as display_service logo) so we use the same framebuffer. */
+	priv->fd = open(fbdevDevicePath, O_RDWR);
+	if (priv->fd >= 0)
+		goto have_fd;
+	/* Fallback: kernel framebuffer via syscalls 15 and 16 */
+	if (fbdevInitializeEclipse(card, priv))
+		return TRUE;
+	ErrorF("Eclipse: open(%s) and syscall framebuffer both failed\n", fbdevDevicePath);
+	return FALSE;
+#endif
+
 	if ((priv->fd = open(fbdevDevicePath, O_RDWR)) < 0) {
 		ErrorF("Error opening framebuffer %s: %s\n",
 		       fbdevDevicePath, strerror(errno));
 		return FALSE;
 	}
-
+have_fd:
 	/* quiet valgrind */
 	memset(&priv->fix, '\0', sizeof(priv->fix));
 	if (ioctl(priv->fd, FBIOGET_FSCREENINFO, &priv->fix) < 0) {
@@ -157,6 +235,21 @@ static Bool fbdevScreenInitialize(KdScreenInfo * screen, FbdevScrPriv * scrpriv)
 	const KdMonitorTiming *t;
 	int k;
 
+#ifdef ECLIPSE_OS
+	if (priv->fd < 0) {
+		/* Eclipse: fix/var already set by kernel syscalls; skip ioctl path */
+		screen->width = priv->var.xres;
+		screen->height = priv->var.yres;
+		screen->fb.depth = priv->var.bits_per_pixel;
+		screen->rate = 103;
+		depth = priv->var.bits_per_pixel;
+		gray = priv->var.grayscale;
+		if (!priv->fix.line_length)
+			priv->fix.line_length = (priv->var.xres_virtual * depth + 7) / 8;
+		goto after_ioctl;
+	}
+#endif
+
 	k = ioctl(priv->fd, FBIOGET_VSCREENINFO, &var);
 
 	if (!screen->width || !screen->height) {
@@ -209,6 +302,7 @@ static Bool fbdevScreenInitialize(KdScreenInfo * screen, FbdevScrPriv * scrpriv)
 	depth = priv->var.bits_per_pixel;
 	gray = priv->var.grayscale;
 
+ after_ioctl:
 	/* Calculate fix.line_length if it's zero */
 	if (!priv->fix.line_length)
 		priv->fix.line_length = (priv->var.xres_virtual * depth + 7) / 8;
@@ -632,6 +726,8 @@ static int fbdevUpdateFbColormap(FbdevPriv *priv, int minidx, int maxidx)
 {
 	struct fb_cmap cmap;
 
+	if (priv->fd < 0)
+		return 0;  /* Eclipse: no ioctl */
 	cmap.start = minidx;
 	cmap.len = maxidx - minidx + 1;
 	cmap.red = &priv->red[minidx];
@@ -648,6 +744,8 @@ Bool fbdevEnable(ScreenPtr pScreen)
 	FbdevPriv *priv = pScreenPriv->card->driver;
 	int k;
 
+	if (priv->fd < 0)
+		return TRUE;  /* Eclipse: already active via syscall mapping */
 	priv->var.activate = FB_ACTIVATE_NOW | FB_CHANGE_CMAP_VBL;
 
 	/* display it on the LCD */
@@ -685,6 +783,8 @@ Bool fbdevDPMS(ScreenPtr pScreen, int mode)
 
 	if (mode == oldmode)
 		return TRUE;
+	if (priv->fd < 0)
+		return TRUE;  /* Eclipse: no DPMS ioctl */
 #ifdef FBIOPUT_POWERMODE
 	if (ioctl(priv->fd, FBIOPUT_POWERMODE, &mode) >= 0) {
 		oldmode = mode;
@@ -716,8 +816,10 @@ void fbdevCardFini(KdCardInfo * card)
 {
 	FbdevPriv *priv = card->driver;
 
-	munmap(priv->fb_base, priv->fix.smem_len);
-	close(priv->fd);
+	if (priv->fd >= 0) {
+		munmap(priv->fb_base, priv->fix.smem_len);
+		close(priv->fd);
+	}
 	free(priv);
 }
 
@@ -748,6 +850,14 @@ void fbdevGetColors(ScreenPtr pScreen, int n, xColorItem * pdefs)
 	cmap.green = &priv->green[min];
 	cmap.blue = &priv->blue[min];
 	cmap.transp = 0;
+	if (priv->fd < 0) {
+		/* Eclipse: TrueColor, no colormap ioctl; fill defaults */
+		while (n--) {
+			pdefs->red = pdefs->green = pdefs->blue = 0;
+			pdefs++;
+		}
+		return;
+	}
 	k = ioctl(priv->fd, FBIOGETCMAP, &cmap);
 	if (k < 0) {
 		perror("can't get colormap");

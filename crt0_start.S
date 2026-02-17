@@ -7,19 +7,19 @@
     .globl _start
     .type _start, @function
 _start:
-    mov 0(%rsp), %rdi          /* argc */
-    lea 8(%rsp), %rsi          /* argv */
-    lea 8(%rsp), %rax
-    mov (%rsp), %rcx
-    add $1, %rcx
-    shl $3, %rcx
-    add %rcx, %rax
-    mov %rax, %rdx             /* envp = argv + (argc+1)*8 */
-    and $-16, %rsp             /* ABI: stack 16-byte aligned before call */
+    xor %rbp, %rbp            /* Clear RBP per SysV ABI (terminates backtrace) */
+    mov %rsp, %rdi            /* Pass current stack pointer as first argument (RDI) */
+    
+    /* ABI requirement: stack MUST be 16-byte aligned before calling a function. */
+    and $-16, %rsp
+    sub $8, %rsp              /* Subtract 8 to account for the call push, keeping it 16-byte aligned *after* call */
+    
     call __crt_start
+    
+    /* If __crt_start returns, exit with its return value */
     mov %eax, %edi
     call exit
-    hlt
+    hlt                       /* Should never reach here */
     .size _start, . - _start
 
 /* Stubs globales para glibc estático (crt1/crti) */
