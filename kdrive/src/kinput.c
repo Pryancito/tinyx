@@ -1,6 +1,6 @@
 /*
  *
- * Copyright ? 1999 Keith Packard
+ * Copyright © 1999 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
  * documentation for any purpose is hereby granted without fee, provided that
@@ -341,20 +341,18 @@ Bool LegalModifier(unsigned int key, DevicePtr pDev)
 
 static void KdBell(int volume, DeviceIntPtr pDev, pointer ctrl, int something)
 {
-	if (kdInputEnabled && kdKeyboardFuncs)
+	if (kdInputEnabled)
 		(*kdKeyboardFuncs->Bell) (volume, kdBellPitch, kdBellDuration);
 }
 
 static void KdSetLeds(void)
 {
-	if (kdInputEnabled && kdKeyboardFuncs)
+	if (kdInputEnabled)
 		(*kdKeyboardFuncs->Leds) (kdLeds);
 }
 
 void KdSetLed(int led, Bool on)
 {
-	if (!pKdKeyboard || !pKdKeyboard->kbdfeed)
-		return;
 	NoteLedState(pKdKeyboard, led, on);
 	kdLeds = pKdKeyboard->kbdfeed->ctrl.leds;
 	KdSetLeds();
@@ -1083,11 +1081,10 @@ extern int nClients;
 
 static void KdCheckSpecialKeys(xEvent * xE)
 {
-	KeySym sym;
+	KeySym sym = KEYCOL1(xE->u.u.detail);
 
-	if (!pKdKeyboard || !pKdKeyboard->key)
+	if (!pKdKeyboard)
 		return;
-	sym = KEYCOL1(xE->u.u.detail);
 
 	/*
 	 * Ignore key releases
@@ -1107,7 +1104,7 @@ static void KdCheckSpecialKeys(xEvent * xE)
 	 * Let OS function see keysym first
 	 */
 
-	if (kdOsFuncs && kdOsFuncs->SpecialKey)
+	if (kdOsFuncs->SpecialKey)
 		if ((*kdOsFuncs->SpecialKey) (sym))
 			return;
 
@@ -1182,13 +1179,7 @@ void KdReleaseAllKeys(void)
 
 static void KdCheckLock(void)
 {
-	KeyClassPtr keyc;
-
-	if (!pKdKeyboard || !kdKeyboardFuncs)
-		return;
-	keyc = pKdKeyboard->key;
-	if (!keyc)
-		return;
+	KeyClassPtr keyc = pKdKeyboard->key;
 
 	Bool isSet, shouldBeSet;
 
@@ -1261,7 +1252,7 @@ void KdEnqueueKeyboardEvent(unsigned char scan_code, unsigned char is_up)
 	xEvent xE;
 	KeyClassPtr keyc;
 
-	if (!pKdKeyboard || !pKdKeyboard->key)
+	if (!pKdKeyboard)
 		return;
 
 	keyc = pKdKeyboard->key;
@@ -1300,10 +1291,7 @@ void KdEnqueueKeyboardEvent(unsigned char scan_code, unsigned char is_up)
 		 * Check pressed keys which are already down
 		 */
 		if (IsKeyDown(key_code) && xE.u.u.type == KeyPress) {
-			KeybdCtrl *ctrl;
-			if (!pKdKeyboard->kbdfeed)
-				return;
-			ctrl = &pKdKeyboard->kbdfeed->ctrl;
+			KeybdCtrl *ctrl = &pKdKeyboard->kbdfeed->ctrl;
 
 			/*
 			 * Check auto repeat
@@ -1486,7 +1474,7 @@ KdBlockHandler(int screen, pointer blockData, pointer timeout, pointer readmask)
 		}
 	}
 	/* if we need to poll for events, do that */
-	if (kdOsFuncs && kdOsFuncs->pollEvents) {
+	if (kdOsFuncs->pollEvents) {
 		(*kdOsFuncs->pollEvents) ();
 		myTimeout = 20;
 	}

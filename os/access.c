@@ -86,7 +86,6 @@ SOFTWARE.
 
 
 
-#include <sys/utsname.h>
 #if (defined(SYSV) && defined(i386)) || defined(__GNU__)
 # include <sys/utsname.h>
 #endif

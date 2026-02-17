@@ -94,7 +94,6 @@ SOFTWARE.
 #endif
 
 #include <sys/uio.h>
-#include <unistd.h>
 #include "misc.h"		/* for typedef of pointer */
 #include "osdep.h"
 #include <X11/Xpoll.h>
@@ -163,7 +162,6 @@ lookup_trans_conn (int fd)
 void
 InitConnectionLimits(void)
 {
-    int lastfdesc;
     lastfdesc = -1;
 
 
@@ -199,11 +197,11 @@ InitConnectionLimits(void)
     }
     MaxClients = lastfdesc;
 
+#ifdef DEBUG
+    ErrorF("InitConnectionLimits: MaxClients = %d\n", MaxClients);
+#endif
+
     ConnectionTranslation = (int *)malloc(sizeof(int)*(lastfdesc + 1));
-    if (!ConnectionTranslation) {
-        FatalError("InitConnectionLimits: Failed to allocate ConnectionTranslation (%d bytes)\n",
-                   (int)(sizeof(int)*(lastfdesc + 1)));
-    }
 }
 
 
@@ -217,7 +215,6 @@ CreateWellKnownSockets(void)
 {
     int		i;
     int		partial;
-    int		retry;
     char 	port[20];
     OsSigHandlerPtr handler;
 
@@ -232,56 +229,35 @@ CreateWellKnownSockets(void)
 
     sprintf (port, "%d", atoi (display));
 
-    /* Guard: transport must be linked (e.g. from xstrans.c / libos) */
-    if (!_XSERVTransMakeAllCOTSServerListeners) {
-	FatalError("Transport layer not linked: _XSERVTransMakeAllCOTSServerListeners is NULL. "
-		   "Ensure Xfbdev is built with os/libos.la (xstrans) and that TCPCONN or UNIXCONN is defined.\n");
-    }
-
-    for (retry = 0; retry < 2; retry++) {
-	if (retry == 1) {
-	    /* Remove stale Unix socket and try again */
-	    char sockpath[64];
-	    snprintf(sockpath, sizeof(sockpath), "/tmp/.X11-unix/X%s", port);
-	    (void) unlink(sockpath);
-	}
-
-	if ((_XSERVTransMakeAllCOTSServerListeners (port, &partial,
-	    &ListenTransCount, &ListenTransConns) >= 0) &&
-	    (ListenTransCount >= 1))
+    if ((_XSERVTransMakeAllCOTSServerListeners (port, &partial,
+	&ListenTransCount, &ListenTransConns) >= 0) &&
+	(ListenTransCount >= 1))
+    {
+	if (!PartialNetwork && partial)
 	{
-	    if (!PartialNetwork && partial)
-	    {
-		FatalError ("Failed to establish all listening sockets");
-	    }
-	    else
-	    {
-		ListenTransFds = malloc(ListenTransCount * sizeof (int));
+	    FatalError ("Failed to establish all listening sockets");
+	}
+	else
+	{
+	    ListenTransFds = malloc(ListenTransCount * sizeof (int));
 
-		for (i = 0; i < ListenTransCount; i++)
+	    for (i = 0; i < ListenTransCount; i++)
+	    {
+		int fd = _XSERVTransGetConnectionNumber (ListenTransConns[i]);
+
+		ListenTransFds[i] = fd;
+		FD_SET (fd, &WellKnownConnections);
+
+		if (!_XSERVTransIsLocal (ListenTransConns[i]))
 		{
-		    int fd = _XSERVTransGetConnectionNumber (ListenTransConns[i]);
-
-		    ListenTransFds[i] = fd;
-		    FD_SET (fd, &WellKnownConnections);
-
-		    if (!_XSERVTransIsLocal (ListenTransConns[i]))
-		    {
-			DefineSelf (fd);
-		    }
+		    DefineSelf (fd);
 		}
 	    }
-	    break;
 	}
     }
 
-    if (!XFD_ANYSET (&WellKnownConnections)) {
-	int d = display ? atoi(display) : -1;
-	FatalError ("Cannot establish any listening sockets - Display :%d in use or stale socket.\n"
-	    "Remove stale socket: rm -f /tmp/.X11-unix/X%d\n"
-	    "Or use another display: Xfbdev :%d",
-	    d >= 0 ? d : 0, d >= 0 ? d : 0, (d >= 0 ? d : 0) + 1);
-    }
+    if (!XFD_ANYSET (&WellKnownConnections))
+        FatalError ("Cannot establish any listening sockets - Make sure an X server isn't already running");
     OsSignal (SIGPIPE, SIG_IGN);
     OsSignal (SIGHUP, AutoResetServer);
     OsSignal (SIGINT, GiveUp);
