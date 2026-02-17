@@ -13,17 +13,18 @@ libfbdev_a_SOURCES =	\
 Xfbdev_SOURCES = \
 	fbinit.c
 
-<<<<<<< HEAD
-# Force resolver ResetFontPrivateIndex desde libxfont/libxfont2 (evita undefined ref con estáticos+LTO)
-# -no-pie: necesario si se enlaza con crt0_*.o (compilados con -fno-PIE); evita "relocation R_X86_64_32 can not be used when making a PIE object"
-Xfbdev_LDFLAGS = -Wl,--undefined=ResetFontPrivateIndex -no-pie
+# Enlace estático: sin dependencias .so (necesario para Eclipse OS).
+# -all-static es la opción de libtool que fuerza enlace estático (libtool ignora -static a veces).
+# -no-pie: necesario si se enlaza con crt0_*.o.
+# -Wl,--undefined=ResetFontPrivateIndex: resolver desde libxfont/libxfont2.
+Xfbdev_LDFLAGS = -all-static -no-pie -Wl,--undefined=ResetFontPrivateIndex
 
-=======
->>>>>>> parent of d6a6242 (mejoras para el sistema operativo Eclipse OS.)
+# Con enlace estático, freetype/fontenc/png necesitan estas libs; orden: deps al final (-lz -lm para gz*, deflate*, pow)
 Xfbdev_LDADD = 						\
 	libfbdev.a					\
 	@KDRIVE_LIBS@					\
-	@XSERVER_LIBS@					
+	@XSERVER_LIBS@					\
+	-lpng -lbz2 -lbrotlidec -lbrotlicommon -lz -lm					
 
 Xfbdev_DEPENDENCIES =					\
 	libfbdev.a @KDRIVE_LIBS@
